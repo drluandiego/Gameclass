@@ -1,0 +1,361 @@
+/* ============================================
+   GameClass — Premium Utilitarian Minimalism
+   Warm monochrome + muted pastels, editorial feel
+   Enhanced with spring physics & tactile feedback
+   ============================================ */
+
+:root {
+  /* Canvas */
+  --bg-canvas: #F7F6F3;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F9F9F8;
+
+  /* Text */
+  --text-primary: #2F3437;
+  --text-secondary: #787774;
+  --text-tertiary: #A8A29E;
+
+  /* Borders */
+  --border: #EAEAEA;
+  --border-focus: #2F3437;
+
+  /* Semantic accents (muted pastels) */
+  --accent-blue-bg: #E1F3FE;
+  --accent-blue-text: #1F6C9F;
+  --accent-green-bg: #EDF3EC;
+  --accent-green-text: #346538;
+  --accent-red-bg: #FDEBEC;
+  --accent-red-text: #9F2F2D;
+  --accent-yellow-bg: #FBF3DB;
+  --accent-yellow-text: #956400;
+  --accent-purple-bg: #F3E8FF;
+  --accent-purple-text: #6B21A8;
+
+  /* Functional */
+  --primary-bg: #111111;
+  --primary-text: #FFFFFF;
+  --danger: #9F2F2D;
+  --success: #346538;
+
+  /* Spacing & Radius */
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-lg: 12px;
+
+  /* Spring easing (approximation of stiffness:100, damping:20) */
+  --spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring-fast: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* For components that reference old vars */
+  --text-main: #2F3437;
+  --text-muted: #787774;
+  --primary: #111111;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'SF Pro Display', 'Geist Sans', 'Helvetica Neue', system-ui, sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
+}
+
+h1, h2, h3 {
+  font-family: 'Newsreader', 'Playfair Display', 'Instrument Serif', 'Georgia', serif;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+code, kbd, .mono {
+  font-family: 'SF Mono', 'Geist Mono', 'JetBrains Mono', monospace;
+}
+
+/* ===== Cards / Panels ===== */
+.glass-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition: box-shadow 300ms var(--spring), transform 300ms var(--spring);
+}
+
+.glass-panel:hover {
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.06);
+}
+
+/* ===== Buttons ===== */
+.btn-primary {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  border: none;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 300ms var(--spring), transform 150ms var(--spring-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+.btn-primary:hover {
+  background: #333333;
+}
+
+.btn-primary:active {
+  transform: scale(0.97) translateY(1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 300ms var(--spring);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-elevated);
+  border-color: #ccc;
+}
+
+.btn-secondary:active {
+  transform: scale(0.97) translateY(1px);
+}
+
+/* ===== Inputs ===== */
+.input-glass {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm);
+  width: 100%;
+  font-size: 0.9375rem;
+  outline: none;
+  transition: border-color 300ms var(--spring), box-shadow 300ms var(--spring);
+  font-family: inherit;
+}
+
+.input-glass:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(47, 52, 55, 0.06);
+}
+
+.input-glass::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ===== Tags / Badges ===== */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tag-blue { background: var(--accent-blue-bg); color: var(--accent-blue-text); }
+.tag-green { background: var(--accent-green-bg); color: var(--accent-green-text); }
+.tag-red { background: var(--accent-red-bg); color: var(--accent-red-text); }
+.tag-yellow { background: var(--accent-yellow-bg); color: var(--accent-yellow-text); }
+.tag-purple { background: var(--accent-purple-bg); color: var(--accent-purple-text); }
+
+/* ===== Animations ===== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 500ms var(--spring) forwards;
+}
+
+/* Staggered reveal: set --index on children for cascade */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeIn 500ms var(--spring) forwards;
+  animation-delay: calc(var(--index, 0) * 80ms);
+}
+
+/* ===== Skeleton Loader ===== */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-canvas) 25%,
+    var(--bg-elevated) 50%,
+    var(--bg-canvas) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-text {
+  height: 0.875rem;
+  margin-bottom: 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-title {
+  height: 1.5rem;
+  width: 60%;
+  margin-bottom: 0.75rem;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-card {
+  height: 120px;
+  border-radius: var(--radius-lg);
+}
+
+.skeleton-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+}
+
+/* ===== Layout ===== */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.min-h-screen {
+  min-height: 100dvh;
+}
+
+/* ===== Dividers ===== */
+.divider {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+/* ===== Keystroke UI ===== */
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-canvas);
+  padding: 0.15rem 0.4rem;
+  font-family: 'SF Mono', 'Geist Mono', 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+/* ===== Modal overlay ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(47, 52, 55, 0.25);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 1rem;
+  animation: overlayIn 300ms var(--spring) forwards;
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-overlay > .glass-panel {
+  animation: fadeInScale 400ms var(--spring) forwards;
+}
+
+/* ===== Mobile ===== */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .glass-panel {
+    padding: 16px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .input-glass {
+    min-height: 48px;
+    font-size: 16px;
+  }
+}
+
+/* ===== Reaction float (kept for ReactionOverlay) ===== */
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-100vh) scale(0.5); opacity: 0; }
+}
+
+.reaction-float {
+  will-change: transform, opacity;
+}
+
+/* ===== Present.jsx Telao (stays dark for projection) ===== */
+.telao-mode {
+  background: #0A0A0A;
+  color: #fff;
+}
+
+.telao-mode .glass-panel {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
