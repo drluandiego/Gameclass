@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { saveFileLocal } from '../../lib/storage';
+import { saveFileLocal, getFileLocal, deleteFileLocal } from '../../lib/storage';
 import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function Dashboard() {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [qrClass, setQrClass] = useState(null);
 
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
@@ -29,17 +31,34 @@ export default function Dashboard() {
     setCreating(true);
 
     try {
-      const { data, error } = await supabase.from('classes').insert({ title }).select().single();
+      const room_code = Math.floor(100000 + Math.random() * 900000).toString();
+      const { data, error } = await supabase.from('classes').insert({ title, room_code }).select().single();
       if (error) throw error;
 
       await saveFileLocal(`pdf_${data.id}`, file);
 
+      // Upload PDF to Supabase Storage so students can see slides on their phones
       const filePath = `classes/${data.id}.pdf`;
       const { error: uploadError } = await supabase.storage
         .from('slides')
         .upload(filePath, file, { contentType: 'application/pdf', upsert: true });
 
-      if (!uploadError) {
+      if (uploadError) {
+        console.warn('Upload falhou, tentando novamente...', uploadError.message);
+        // Retry once
+        const { error: retryError } = await supabase.storage
+          .from('slides')
+          .upload(filePath, file, { contentType: 'application/pdf', upsert: true });
+        if (retryError) {
+          console.error('Upload falhou definitivamente:', retryError.message);
+          alert('Aviso: O PDF foi salvo localmente mas nao foi possivel enviar ao servidor. Os alunos verao apenas o numero do slide. Verifique se o bucket "slides" existe no Supabase Storage com acesso publico.');
+        } else {
+          const { data: urlData } = supabase.storage.from('slides').getPublicUrl(filePath);
+          if (urlData?.publicUrl) {
+            await supabase.from('classes').update({ pdf_url: urlData.publicUrl }).eq('id', data.id);
+          }
+        }
+      } else {
         const { data: urlData } = supabase.storage.from('slides').getPublicUrl(filePath);
         if (urlData?.publicUrl) {
           await supabase.from('classes').update({ pdf_url: urlData.publicUrl }).eq('id', data.id);
@@ -58,11 +77,14 @@ export default function Dashboard() {
     }
   };
 
-  const startPresentation = async (classId) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const startPresentation = async (cls) => {
+    const code = cls.room_code;
+
+    // Deactivate any old sessions with this code
+    await supabase.from('sessions').update({ is_active: false }).eq('code', code).eq('is_active', true);
 
     const { data, error } = await supabase.from('sessions').insert({
-      class_id: classId,
+      class_id: cls.id,
       code: code,
       current_slide: 1,
       is_active: true
@@ -72,6 +94,88 @@ export default function Dashboard() {
 
     window.open(`/admin/present/${data.id}`, '_blank');
     navigate(`/admin/panel/${data.id}`);
+  };
+
+  const [deletingId, setDeletingId] = useState(null);
+  const [duplicatingId, setDuplicatingId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const handleDelete = async (cls) => {
+    setDeletingId(cls.id);
+    try {
+      // Delete games, sessions, storage PDF, local cache
+      await supabase.from('games').delete().eq('class_id', cls.id);
+      await supabase.from('sessions').delete().eq('class_id', cls.id);
+      await supabase.storage.from('slides').remove([`classes/${cls.id}.pdf`]);
+      await deleteFileLocal(`pdf_${cls.id}`);
+      await supabase.from('classes').delete().eq('id', cls.id);
+      setConfirmDelete(null);
+      fetchClasses();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao excluir a aula.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDuplicate = async (cls) => {
+    setDuplicatingId(cls.id);
+    try {
+      // 1. Create new class with new room_code
+      const room_code = Math.floor(100000 + Math.random() * 900000).toString();
+      const { data: newClass, error } = await supabase.from('classes').insert({
+        title: `${cls.title} (cópia)`,
+        room_code,
+        pdf_url: null,
+      }).select().single();
+      if (error) throw error;
+
+      // 2. Copy games
+      const { data: games } = await supabase.from('games').select('*').eq('class_id', cls.id);
+      if (games && games.length > 0) {
+        const copies = games.map(g => ({
+          class_id: newClass.id,
+          slide_number: g.slide_number,
+          game_type: g.game_type,
+          title: g.title,
+          config: g.config,
+          time_limit: g.time_limit,
+          points: g.points,
+        }));
+        await supabase.from('games').insert(copies);
+      }
+
+      // 3. Copy PDF from storage
+      if (cls.pdf_url) {
+        // Download original and re-upload
+        const oldPath = `classes/${cls.id}.pdf`;
+        const newPath = `classes/${newClass.id}.pdf`;
+        const { data: fileData } = await supabase.storage.from('slides').download(oldPath);
+        if (fileData) {
+          await supabase.storage.from('slides').upload(newPath, fileData, { contentType: 'application/pdf', upsert: true });
+          const { data: urlData } = supabase.storage.from('slides').getPublicUrl(newPath);
+          if (urlData?.publicUrl) {
+            await supabase.from('classes').update({ pdf_url: urlData.publicUrl }).eq('id', newClass.id);
+          }
+          // Also save to local cache
+          await saveFileLocal(`pdf_${newClass.id}`, fileData);
+        }
+      } else {
+        // Try local cache
+        const localBlob = await getFileLocal(`pdf_${cls.id}`);
+        if (localBlob) {
+          await saveFileLocal(`pdf_${newClass.id}`, localBlob);
+        }
+      }
+
+      fetchClasses();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao duplicar a aula.');
+    } finally {
+      setDuplicatingId(null);
+    }
   };
 
   return (
@@ -116,20 +220,113 @@ export default function Dashboard() {
             <div key={cls.id} className="glass-panel" style={{ '--index': i, display: 'flex', flexDirection: 'column' }}>
               <div style={{ background: 'var(--bg-canvas)', height: '6px', margin: '-24px -24px 20px -24px', borderRadius: '12px 12px 0 0' }} />
               <h3 style={{ fontSize: '1.2rem', marginBottom: '0.4rem', fontWeight: 600 }}>{cls.title}</h3>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.8rem', fontFamily: "'SF Mono', monospace" }}>
-                {new Date(cls.created_at).toLocaleDateString()}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontFamily: "'SF Mono', monospace", margin: 0 }}>
+                  {new Date(cls.created_at).toLocaleDateString()}
+                </p>
+                {cls.room_code && (
+                  <button
+                    onClick={() => setQrClass(cls)}
+                    style={{
+                      background: 'var(--bg-canvas)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)', padding: '0.15rem 0.5rem',
+                      fontSize: '0.75rem', fontFamily: "'SF Mono', monospace",
+                      fontWeight: 600, cursor: 'pointer', color: 'var(--game-blue)',
+                      display: 'flex', alignItems: 'center', gap: '0.3rem',
+                    }}
+                  >
+                    QR {cls.room_code}
+                  </button>
+                )}
+              </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                <button onClick={() => startPresentation(cls.id)} className="btn-primary" style={{ flex: 1 }}>
+                <button onClick={() => startPresentation(cls)} className="btn-primary" style={{ flex: 1 }}>
                   Apresentar
                 </button>
                 <button onClick={() => navigate(`/admin/editor/${cls.id}`)} className="btn-secondary" style={{ flex: 1 }}>
                   Games
                 </button>
               </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+                <button
+                  onClick={() => handleDuplicate(cls)}
+                  disabled={duplicatingId === cls.id}
+                  className="btn-secondary"
+                  style={{ flex: 1, fontSize: '0.75rem', padding: '0.4rem' }}
+                >
+                  {duplicatingId === cls.id ? 'Duplicando...' : 'Duplicar'}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(cls)}
+                  className="btn-secondary"
+                  style={{ flex: 1, fontSize: '0.75rem', padding: '0.4rem', color: 'var(--accent-red-text)', borderColor: 'var(--accent-red-bg)' }}
+                >
+                  Excluir
+                </button>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal - QR Code */}
+      {qrClass && (
+        <div className="modal-overlay" style={{ zIndex: 100 }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', textAlign: 'center' }}>
+            <h2 style={{ marginBottom: '0.3rem', fontSize: '1.3rem', fontWeight: 700 }}>{qrClass.title}</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '1.5rem' }}>
+              Imprima este QR code e cole na mesa dos alunos
+            </p>
+            <div style={{ background: '#fff', padding: '1.5rem', borderRadius: 'var(--radius)', display: 'inline-block', marginBottom: '1rem' }}>
+              <QRCodeSVG value={`${window.location.origin}/join/${qrClass.room_code}`} size={200} />
+            </div>
+            <p style={{
+              fontSize: '2rem', fontWeight: 800, fontFamily: "'SF Mono', monospace",
+              letterSpacing: '6px', margin: '0.5rem 0 0.3rem', color: 'var(--game-blue)',
+            }}>
+              {qrClass.room_code}
+            </p>
+            <p style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem', marginBottom: '1.5rem', fontFamily: "'SF Mono', monospace" }}>
+              {window.location.origin}/join/{qrClass.room_code}
+            </p>
+            <button onClick={() => setQrClass(null)} className="btn-secondary" style={{ width: '100%' }}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal - Confirmar exclusão */}
+      {confirmDelete && (
+        <div className="modal-overlay" style={{ zIndex: 100 }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '380px', textAlign: 'center' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>Excluir aula?</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.3rem' }}>
+              <strong>{confirmDelete.title}</strong>
+            </p>
+            <p style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', marginBottom: '1.5rem' }}>
+              Todos os games, sessoes e o PDF serao apagados permanentemente.
+            </p>
+            <div style={{ display: 'flex', gap: '0.6rem' }}>
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="btn-secondary"
+                style={{ flex: 1 }}
+                disabled={deletingId === confirmDelete.id}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDelete)}
+                className="btn-primary"
+                style={{ flex: 1, background: 'var(--game-red)' }}
+                disabled={deletingId === confirmDelete.id}
+              >
+                {deletingId === confirmDelete.id ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useStudentIdentity } from '../../hooks/useStudentIdentity';
 import { useReactions } from '../../hooks/useReactions';
@@ -29,6 +30,7 @@ export default function Room() {
 
   const { student, register } = useStudentIdentity(session?.id);
   const { reactions, sendReaction, REACTION_EMOJIS } = useReactions(session?.id);
+  const [usedEmojis, setUsedEmojis] = useState(new Set());
   const { rankings } = useLeaderboard(session?.id);
 
   useEffect(() => {
@@ -44,12 +46,13 @@ export default function Room() {
     if (!session?.active_game_instance_id) {
       if (activeInstance) {
         setShowLeaderboard(true);
-        setTimeout(() => setShowLeaderboard(false), 5000);
+        setTimeout(() => setShowLeaderboard(false), 10000);
       }
       setActiveInstance(null);
       setActiveGame(null);
       setResponded(false);
       setResponses([]);
+      setUsedEmojis(new Set());
       return;
     }
 
@@ -113,6 +116,18 @@ export default function Room() {
   const loadSessionAndSubscribe = async () => {
     const { data: sess, error } = await supabase.from('sessions').select('*, classes(pdf_url)').eq('code', id).eq('is_active', true).single();
     if (error || !sess) {
+      // Check if this is a valid room_code — redirect to waiting room
+      const { data: cls } = await supabase
+        .from('classes')
+        .select('id, room_code')
+        .eq('room_code', id)
+        .single();
+
+      if (cls) {
+        navigate(`/join/${id}`, { replace: true });
+        return null;
+      }
+
       alert('Codigo invalido ou aula finalizada.');
       navigate('/');
       return null;
@@ -133,7 +148,13 @@ export default function Room() {
         event: 'UPDATE', schema: 'public', table: 'sessions',
         filter: `id=eq.${sess.id}`,
       }, (payload) => {
-        setSession(payload.new);
+        const updated = payload.new;
+        if (!updated.is_active) {
+          // Session ended — redirect to waiting room
+          navigate(`/join/${id}`, { replace: true });
+          return;
+        }
+        setSession(updated);
       })
       .subscribe();
 
@@ -153,6 +174,20 @@ export default function Room() {
       response_time_ms: responseTimeMs,
     });
   };
+
+  // Auto-register if coming from waiting room with stored nickname
+  useEffect(() => {
+    if (!session || student) return;
+    const stored = localStorage.getItem('gameclass_waiting');
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.roomCode === id && parsed.nickname) {
+        localStorage.removeItem('gameclass_waiting');
+        register(parsed.nickname);
+      }
+    } catch { /* ignore */ }
+  }, [session, student, id]);
 
   const handleNicknameSubmit = async (nickname) => {
     await register(nickname);
@@ -181,135 +216,160 @@ export default function Room() {
   const isShowingResults = activeInstance?.status === 'showing_results';
 
   return (
-    <div className="min-h-screen flex-center flex-col animate-fade-in" style={{ padding: '1rem', background: 'var(--bg-canvas)' }}>
+    <div className="min-h-screen flex-center flex-col" style={{ padding: '1rem', background: 'var(--bg-canvas)' }}>
       <ReactionOverlay reactions={reactions} />
-      <Leaderboard rankings={rankings} visible={showLeaderboard} />
+      <Leaderboard rankings={rankings} visible={showLeaderboard} onDismiss={() => setShowLeaderboard(false)} />
 
-      <div style={{ width: '100%', maxWidth: '800px' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+        style={{ width: '100%', maxWidth: '800px' }}
+      >
         <div className="glass-panel" style={{ minHeight: '60vh', position: 'relative', overflow: 'hidden' }}>
 
-          {/* Status bar */}
+          {/* Vibrant status bar */}
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0,
-            background: 'var(--accent-green-bg)', padding: '0.25rem 1rem',
-            fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent-green-text)',
+            background: 'var(--game-green)', padding: '0.3rem 1rem',
+            fontSize: '0.7rem', fontWeight: 700, color: '#fff',
             letterSpacing: '0.05em', textTransform: 'uppercase',
             display: 'flex', justifyContent: 'space-between',
+            borderRadius: '12px 12px 0 0',
           }}>
             <span>Conectado</span>
             <span>{student.nickname}</span>
           </div>
 
-          <div style={{ marginTop: '2rem' }}>
-            <h2 style={{ marginBottom: '0.5rem', fontSize: '1.3rem', textAlign: 'center', fontWeight: 600 }}>GameClass</h2>
-
-            {/* Active game */}
-            {activeInstance && activeGame ? (
-              <div style={{ marginTop: '1rem', width: '100%', animation: 'fadeIn 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
-                {/* Mini slide preview during game */}
-                {pdfUrl && (
-                  <div style={{ marginBottom: '0.8rem', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', opacity: 0.9 }}>
-                    <PDFViewer
-                      fileUrl={pdfUrl}
-                      pageNumber={session?.current_slide || 1}
-                      onDocumentLoadSuccess={() => {}}
-                      width={Math.min(window.innerWidth - 100, 350)}
-                    />
-                  </div>
-                )}
-                {isShowingResults ? (
-                  <div>
-                    <p className="tag tag-yellow" style={{ display: 'inline-flex', marginBottom: '0.8rem' }}>Resultado</p>
-                    <GameShell
-                      gameType={activeGame.game_type}
-                      config={activeGame.config}
-                      role="results"
-                      responses={responses}
-                    />
-                  </div>
-                ) : responded ? (
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem' }}>
-                      <span className="tag tag-green">Resposta enviada</span>
-                      <span style={{ color: 'var(--text-tertiary)', fontSize: '0.7rem', fontFamily: "'SF Mono', monospace" }}>
-                        {responses.length} resposta(s)
-                      </span>
+          <div style={{ marginTop: '2.2rem' }}>
+            <AnimatePresence mode="wait">
+              {activeInstance && activeGame ? (
+                <motion.div
+                  key={`game-${activeInstance.id}-${activeInstance.status}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                  style={{ marginTop: '1rem', width: '100%' }}
+                >
+                  {pdfUrl && (
+                    <div style={{ marginBottom: '0.8rem', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', opacity: 0.9 }}>
+                      <PDFViewer
+                        fileUrl={pdfUrl}
+                        pageNumber={session?.current_slide || 1}
+                        onDocumentLoadSuccess={() => {}}
+                        width={Math.min(window.innerWidth - 100, 350)}
+                      />
                     </div>
-                    <GameShell
-                      gameType={activeGame.game_type}
-                      config={activeGame.config}
-                      role="presenter"
-                      responses={responses}
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <p className="tag tag-blue" style={{ display: 'inline-flex', marginBottom: '0.8rem' }}>{activeGame.title}</p>
-                    <GameShell
-                      gameType={activeGame.game_type}
-                      config={activeGame.config}
-                      role="player"
-                      timeLimit={activeGame.time_limit}
-                      timerRunning={activeInstance.status === 'active'}
-                      onTimerEnd={() => {}}
-                      onRespond={handleRespond}
-                      disabled={responded}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                {/* Synced slide on phone */}
-                {pdfUrl ? (
-                  <div style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>
-                    <PDFViewer
-                      fileUrl={pdfUrl}
-                      pageNumber={session?.current_slide || 1}
-                      onDocumentLoadSuccess={() => {}}
-                      width={Math.min(window.innerWidth - 80, 700)}
-                    />
-                    <p style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', marginTop: '0.6rem', fontFamily: "'SF Mono', monospace" }}>
-                      Slide {session?.current_slide}
-                    </p>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: '2rem', padding: '2rem', borderRadius: 'var(--radius-lg)', background: 'var(--bg-canvas)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <p style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', marginBottom: '0.3rem' }}>Slide atual</p>
-                    <p style={{ fontSize: '3rem', fontWeight: 700, fontFamily: "'SF Mono', monospace", margin: 0 }}>
-                      {session?.current_slide}
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+                  {isShowingResults ? (
+                    <div>
+                      <span className="tag tag-yellow" style={{ display: 'inline-flex', marginBottom: '0.8rem' }}>Resultado</span>
+                      <GameShell
+                        gameType={activeGame.game_type}
+                        config={activeGame.config}
+                        role="results"
+                        responses={responses}
+                        theme="light"
+                      />
+                    </div>
+                  ) : responded ? (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem' }}>
+                        <span className="tag tag-green">Resposta enviada</span>
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: '0.7rem', fontFamily: "'SF Mono', monospace" }}>
+                          {responses.length} resposta(s)
+                        </span>
+                      </div>
+                      <GameShell
+                        gameType={activeGame.game_type}
+                        config={activeGame.config}
+                        role="presenter"
+                        responses={responses}
+                        theme="light"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="tag tag-blue" style={{ display: 'inline-flex', marginBottom: '0.8rem' }}>{activeGame.title}</span>
+                      <GameShell
+                        gameType={activeGame.game_type}
+                        config={activeGame.config}
+                        role="player"
+                        timeLimit={activeGame.time_limit}
+                        timerRunning={activeInstance.status === 'active'}
+                        onTimerEnd={() => {}}
+                        onRespond={handleRespond}
+                        disabled={responded}
+                        theme="light"
+                      />
+                    </div>
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="slides"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  {pdfUrl ? (
+                    <div style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>
+                      <PDFViewer
+                        fileUrl={pdfUrl}
+                        pageNumber={session?.current_slide || 1}
+                        onDocumentLoadSuccess={() => {}}
+                        width={Math.min(window.innerWidth - 80, 700)}
+                      />
+                      <p style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', marginTop: '0.6rem', fontFamily: "'SF Mono', monospace" }}>
+                        Slide {session?.current_slide}
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: '2rem', padding: '2rem', borderRadius: 'var(--radius-lg)', background: 'var(--bg-canvas)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                      <p style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', marginBottom: '0.3rem' }}>Slide atual</p>
+                      <p style={{ fontSize: '3rem', fontWeight: 800, fontFamily: "'SF Mono', monospace", margin: 0, color: 'var(--game-blue)' }}>
+                        {session?.current_slide}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
-        {/* Reaction bar */}
+        {/* Reaction bar — each emoji can only be sent once */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem', marginTop: '0.8rem' }}>
-          {REACTION_EMOJIS.map(emoji => (
-            <button
-              key={emoji}
-              onClick={() => sendReaction(emoji)}
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: '50%', width: '44px', height: '44px',
-                fontSize: '1.2rem', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-              }}
-              onMouseDown={e => e.currentTarget.style.transform = 'scale(0.9)'}
-              onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
-              onTouchStart={e => e.currentTarget.style.transform = 'scale(0.9)'}
-              onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              {emoji}
-            </button>
-          ))}
+          {REACTION_EMOJIS.map(emoji => {
+            const used = usedEmojis.has(emoji);
+            return (
+              <motion.button
+                key={emoji}
+                whileTap={used ? {} : { scale: 0.85 }}
+                onClick={() => {
+                  if (used) return;
+                  sendReaction(emoji);
+                  setUsedEmojis(prev => new Set(prev).add(emoji));
+                }}
+                disabled={used}
+                style={{
+                  background: used ? 'var(--bg-canvas)' : 'var(--bg-surface)',
+                  border: `1px solid ${used ? 'transparent' : 'var(--border)'}`,
+                  borderRadius: '50%', width: '44px', height: '44px',
+                  fontSize: '1.2rem',
+                  cursor: used ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: used ? 0.35 : 1,
+                  transition: 'opacity 300ms ease',
+                }}
+              >
+                {emoji}
+              </motion.button>
+            );
+          })}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { getAllPlugins } from '../games/registry';
-import { HelpCircle, ToggleLeft, Cloud, ArrowUpDown, MessageSquare, Disc } from 'lucide-react';
+import { HelpCircle, ToggleLeft, Cloud, ArrowUpDown, MessageSquare, Disc, Grid2x2, SlidersHorizontal, Scale, Hand } from 'lucide-react';
 
 const iconMap = {
   HelpCircle: HelpCircle,
@@ -8,6 +8,10 @@ const iconMap = {
   ArrowUpDown: ArrowUpDown,
   MessageSquare: MessageSquare,
   Disc: Disc,
+  Grid2x2: Grid2x2,
+  SlidersHorizontal: SlidersHorizontal,
+  Scale: Scale,
+  Hand: Hand,
 };
 
 export default function GameSelector({ onSelect, selectedType }) {

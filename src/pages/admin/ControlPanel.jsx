@@ -23,6 +23,8 @@ export default function ControlPanel() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [ending, setEnding] = useState(false);
 
   const { activeInstance, setActiveInstance, responses, launchGame, closeGame, forceCloseGame, dismissResults } = useGameInstance(session?.id);
   const { rankings } = useLeaderboard(session?.id);
@@ -122,8 +124,15 @@ export default function ControlPanel() {
   };
 
   const endSession = async () => {
-    if (!confirm('Encerrar a aula para todos?')) return;
-    await supabase.from('sessions').update({ is_active: false }).eq('id', id);
+    setEnding(true);
+    const { error } = await supabase.from('sessions').update({ is_active: false }).eq('id', id);
+    if (error) {
+      console.error('Erro ao encerrar sessao:', error);
+      alert('Erro ao encerrar: ' + error.message);
+      setEnding(false);
+      setShowEndConfirm(false);
+      return;
+    }
     navigate('/admin');
   };
 
@@ -169,6 +178,25 @@ export default function ControlPanel() {
   const participationRate = rankings.length > 0 && responses.length > 0
     ? Math.round((responses.length / rankings.length) * 100) : 0;
 
+  // Estimated remaining time
+  const estimateRemaining = () => {
+    if (!numPages) return null;
+    const remaining = numPages - session.current_slide;
+    if (remaining <= 0) return null;
+
+    const SECS_PER_SLIDE = 30;
+    const futureGames = games.filter(g => g.slide_number > session.current_slide);
+    const slidesWithGame = new Set(futureGames.map(g => g.slide_number));
+    const plainSlides = remaining - slidesWithGame.size;
+    const gameTime = futureGames.reduce((sum, g) => sum + (g.time_limit || 30) + 15, 0); // +15s for results/transition
+    const totalSecs = plainSlides * SECS_PER_SLIDE + gameTime;
+
+    const mins = Math.ceil(totalSecs / 60);
+    return mins <= 1 ? '~1 min' : `~${mins} min`;
+  };
+
+  const estimatedTime = estimateRemaining();
+
   return (
     <div className="container min-h-screen flex-col animate-fade-in" style={{ padding: '0.8rem 1rem', maxWidth: '1200px' }}>
       <Leaderboard rankings={rankings} visible={showLeaderboard} />
@@ -186,6 +214,36 @@ export default function ControlPanel() {
         </div>
       )}
 
+      {/* Confirm end session modal */}
+      {showEndConfirm && (
+        <div className="modal-overlay" style={{ zIndex: 300 }}>
+          <div className="glass-panel" style={{ textAlign: 'center', maxWidth: '360px', width: '100%' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>Encerrar aula?</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+              Isso encerra a sessao para todos os alunos conectados.
+            </p>
+            <div style={{ display: 'flex', gap: '0.6rem' }}>
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                className="btn-secondary"
+                style={{ flex: 1 }}
+                disabled={ending}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={endSession}
+                className="btn-primary"
+                style={{ flex: 1, background: 'var(--game-red)' }}
+                disabled={ending}
+              >
+                {ending ? 'Encerrando...' : 'Encerrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', padding: '0.7rem 1.2rem' }}>
         <div>
@@ -197,6 +255,11 @@ export default function ControlPanel() {
               {session.code}
             </kbd>
             <span style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem', fontFamily: "'SF Mono', monospace" }}>{timerFormatted}</span>
+            {estimatedTime && (
+              <span style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem', fontFamily: "'SF Mono', monospace" }}>
+                resta {estimatedTime}
+              </span>
+            )}
             <span style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>{rankings.length} conectados</span>
           </div>
         </div>
@@ -208,7 +271,7 @@ export default function ControlPanel() {
           <button onClick={() => window.open(telaoUrl, '_blank')} className="btn-secondary" style={{ padding: '0.35rem 0.5rem', fontSize: '0.7rem' }}>
             Telao
           </button>
-          <button onClick={endSession} className="btn-secondary" style={{ color: 'var(--accent-red-text)', borderColor: 'var(--accent-red-bg)', padding: '0.35rem 0.5rem', fontSize: '0.7rem' }}>
+          <button onClick={() => setShowEndConfirm(true)} className="btn-secondary" style={{ color: 'var(--accent-red-text)', borderColor: 'var(--accent-red-bg)', padding: '0.35rem 0.5rem', fontSize: '0.7rem' }}>
             Encerrar
           </button>
         </div>

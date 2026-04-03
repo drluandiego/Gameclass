@@ -1,12 +1,11 @@
 /* ============================================
-   GameClass — Premium Utilitarian Minimalism
-   Warm monochrome + muted pastels, editorial feel
-   Enhanced with spring physics & tactile feedback
+   GameClass — Vibrant Gamification Design System
+   Signature colors + spring physics + celebration
    ============================================ */
 
 :root {
   /* Canvas */
-  --bg-canvas: #F7F6F3;
+  --bg-canvas: #F8F8F6;
   --bg-surface: #FFFFFF;
   --bg-elevated: #F9F9F8;
 
@@ -17,9 +16,21 @@
 
   /* Borders */
   --border: #EAEAEA;
-  --border-focus: #2F3437;
+  --border-focus: #407294;
 
-  /* Semantic accents (muted pastels) */
+  /* === Game Signature Colors (EMS Pharma) === */
+  --game-red: #FF4000;
+  --game-blue: #407294;
+  --game-yellow: #FFD900;
+  --game-green: #2D9F5D;
+
+  /* Extended palette */
+  --game-purple: #1B5E8A;
+  --game-pink: #FF6B35;
+  --game-teal: #2A8B8B;
+  --game-orange: #E85D00;
+
+  /* Semantic accents (kept for compatibility) */
   --accent-blue-bg: #E1F3FE;
   --accent-blue-text: #1F6C9F;
   --accent-green-bg: #EDF3EC;
@@ -32,24 +43,24 @@
   --accent-purple-text: #6B21A8;
 
   /* Functional */
-  --primary-bg: #111111;
+  --primary-bg: var(--game-blue);
   --primary-text: #FFFFFF;
-  --danger: #9F2F2D;
-  --success: #346538;
+  --danger: #FF4000;
+  --success: #2D9F5D;
 
   /* Spacing & Radius */
   --radius: 8px;
   --radius-sm: 4px;
   --radius-lg: 12px;
 
-  /* Spring easing (approximation of stiffness:100, damping:20) */
+  /* Spring easing */
   --spring: cubic-bezier(0.16, 1, 0.3, 1);
   --spring-fast: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* For components that reference old vars */
+  /* Compat aliases */
   --text-main: #2F3437;
   --text-muted: #787774;
-  --primary: #111111;
+  --primary: var(--game-blue);
 }
 
 * {
@@ -69,7 +80,8 @@ body {
 }
 
 h1, h2, h3 {
-  font-family: 'Newsreader', 'Playfair Display', 'Instrument Serif', 'Georgia', serif;
+  font-family: 'SF Pro Display', 'Geist Sans', 'Helvetica Neue', system-ui, sans-serif;
+  font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.1;
   color: var(--text-primary);
@@ -94,15 +106,15 @@ code, kbd, .mono {
 
 /* ===== Buttons ===== */
 .btn-primary {
-  background: var(--primary-bg);
+  background: var(--game-blue);
   color: var(--primary-text);
   border: none;
   padding: 0.65rem 1.25rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: background 300ms var(--spring), transform 150ms var(--spring-fast);
+  transition: background 300ms var(--spring), transform 150ms var(--spring-fast), box-shadow 300ms var(--spring);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -111,7 +123,8 @@ code, kbd, .mono {
 }
 
 .btn-primary:hover {
-  background: #333333;
+  background: #345f7a;
+  box-shadow: 0 4px 14px -3px rgba(64, 114, 148, 0.4);
 }
 
 .btn-primary:active {
@@ -122,6 +135,7 @@ code, kbd, .mono {
   opacity: 0.4;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 .btn-secondary {
@@ -129,7 +143,7 @@ code, kbd, .mono {
   color: var(--text-primary);
   border: 1px solid var(--border);
   padding: 0.65rem 1.25rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   font-weight: 500;
   font-size: 0.875rem;
   cursor: pointer;
@@ -151,7 +165,7 @@ code, kbd, .mono {
   border: 1px solid var(--border);
   color: var(--text-primary);
   padding: 0.65rem 0.85rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   width: 100%;
   font-size: 0.9375rem;
   outline: none;
@@ -160,8 +174,8 @@ code, kbd, .mono {
 }
 
 .input-glass:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(47, 52, 55, 0.06);
+  border-color: var(--game-blue);
+  box-shadow: 0 0 0 3px rgba(64, 114, 148, 0.15);
 }
 
 .input-glass::placeholder {
@@ -172,19 +186,19 @@ code, kbd, .mono {
 .tag {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.55rem;
+  padding: 0.2rem 0.65rem;
   border-radius: 9999px;
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.tag-blue { background: var(--accent-blue-bg); color: var(--accent-blue-text); }
-.tag-green { background: var(--accent-green-bg); color: var(--accent-green-text); }
-.tag-red { background: var(--accent-red-bg); color: var(--accent-red-text); }
-.tag-yellow { background: var(--accent-yellow-bg); color: var(--accent-yellow-text); }
-.tag-purple { background: var(--accent-purple-bg); color: var(--accent-purple-text); }
+.tag-blue { background: rgba(64,114,148,0.15); color: var(--game-blue); }
+.tag-green { background: rgba(45,159,93,0.15); color: #1f7a42; }
+.tag-red { background: rgba(255,64,0,0.15); color: var(--game-red); }
+.tag-yellow { background: rgba(255,217,0,0.15); color: #b89e00; }
+.tag-purple { background: rgba(27,94,138,0.15); color: var(--game-purple); }
 
 /* ===== Animations ===== */
 @keyframes fadeIn {
@@ -201,7 +215,7 @@ code, kbd, .mono {
   animation: fadeIn 500ms var(--spring) forwards;
 }
 
-/* Staggered reveal: set --index on children for cascade */
+/* Staggered reveal */
 .stagger-children > * {
   opacity: 0;
   animation: fadeIn 500ms var(--spring) forwards;
@@ -339,7 +353,7 @@ kbd {
   }
 }
 
-/* ===== Reaction float (kept for ReactionOverlay) ===== */
+/* ===== Reaction float ===== */
 @keyframes floatUp {
   0% { transform: translateY(0) scale(1); opacity: 1; }
   100% { transform: translateY(-100vh) scale(0.5); opacity: 0; }
@@ -349,13 +363,60 @@ kbd {
   will-change: transform, opacity;
 }
 
-/* ===== Present.jsx Telao (stays dark for projection) ===== */
+/* ===== Present.jsx Telao ===== */
 .telao-mode {
-  background: #0A0A0A;
+  background: #0D1117;
   color: #fff;
 }
 
 .telao-mode .glass-panel {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ===== Glassmorphism Utilities ===== */
+.glass {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ===== Glow Utilities ===== */
+.glow-blue { box-shadow: 0 0 12px rgba(64,114,148,0.4), 0 0 24px rgba(64,114,148,0.15); }
+.glow-green { box-shadow: 0 0 12px rgba(45,159,93,0.4), 0 0 24px rgba(45,159,93,0.15); }
+.glow-red { box-shadow: 0 0 12px rgba(255,64,0,0.4), 0 0 24px rgba(255,64,0,0.15); }
+.glow-gold { box-shadow: 0 0 12px rgba(255,217,0,0.4), 0 0 24px rgba(255,217,0,0.15); }
+
+/* ===== Advanced Animations ===== */
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes counterBounce {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.counter-bounce {
+  animation: counterBounce 0.35s var(--spring-fast) forwards;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

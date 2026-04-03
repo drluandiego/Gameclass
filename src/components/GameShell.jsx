@@ -7,6 +7,7 @@ import Timer from './Timer';
  * Delega para o plugin correto baseado em role e game_type.
  *
  * role: 'player' | 'presenter' | 'results'
+ * theme: 'light' | 'dark' (passed through to views)
  */
 export default function GameShell({
   gameType,
@@ -18,6 +19,7 @@ export default function GameShell({
   onRespond,
   responses = [],
   disabled = false,
+  theme = 'light',
 }) {
   const plugin = getPlugin(gameType);
   if (!plugin) return <p style={{ color: 'var(--danger)' }}>Tipo de game desconhecido: {gameType}</p>;
@@ -39,6 +41,7 @@ export default function GameShell({
           onRespond={onRespond}
           responses={responses}
           disabled={disabled}
+          theme={theme}
         />
       </Suspense>
     </div>
